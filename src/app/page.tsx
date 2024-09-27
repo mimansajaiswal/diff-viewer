@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Upload, Trash2, Code, Eye, EyeOff, Hash, AlignLeft, SplitSquareVertical, Type } from 'lucide-react';
 import * as diff from 'diff';
@@ -136,6 +136,10 @@ const TextDiffTool = () => {
       diffResult.push({ type: 'unchanged', count: unchangedCount });
     }
 
+    if (showOnlyDiffs) {
+      diffResult = diffResult.filter(item => item.type !== 'unchanged' || 'count' in item);
+    }
+
     setResult(diffResult);
   };
 
@@ -173,54 +177,52 @@ const TextDiffTool = () => {
       <h1 className="text-xl sm:text-2xl font-bold mb-4">Advanced Text Comparison Tool</h1>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         {[
-          { version: 'A', text: textA, setText: setTextA, isJson: isJsonA, setIsJson: setIsJsonA, fileInput: fileInputA },
-          { version: 'B', text: textB, setText: setTextB, isJson: isJsonB, setIsJson: setIsJsonB, fileInput: fileInputB }
+          { version: 'v1', text: textA, setText: setTextA, isJson: isJsonA, setIsJson: setIsJsonA, fileInput: fileInputA },
+          { version: 'v2', text: textB, setText: setTextB, isJson: isJsonB, setIsJson: setIsJsonB, fileInput: fileInputB }
         ].map(({ version, text, setText, isJson, setIsJson, fileInput }) => (
-          <Card key={version}>
-            <CardHeader className="flex justify-between items-center">
-              <span>Version {version}</span>
-              <div>
+          <Card key={version} className="relative">
+            <div className="absolute top-2 left-2 font-bold text-sm bg-gray-200 px-2 py-1 rounded">{version}</div>
+            <div className="absolute top-1 right-1 flex">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => fileInput.current.click()}
+                title="Upload File"
+              >
+                <Upload className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setText('')}
+                title="Clear Text"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+              {isJson && (
                 <Button
                   variant="ghost"
-                  size="icon"
-                  onClick={() => fileInput.current.click()}
-                  title="Upload File"
+                  size="sm"
+                  onClick={() => formatJson(text, setText)}
+                  title="Format JSON"
                 >
-                  <Upload className="w-4 h-4" />
+                  <Code className="w-4 h-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setText('')}
-                  title="Clear Text"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-                {isJson && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => formatJson(text, setText)}
-                    title="Format JSON"
-                  >
-                    <Code className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-              <input
-                type="file"
-                ref={fileInput}
-                className="hidden"
-                onChange={(e) => handleFileUpload(e, setText, setIsJson)}
-              />
-            </CardHeader>
-            <CardContent>
+              )}
+            </div>
+            <CardContent className="pt-10">
               <LineNumberedTextarea
                 value={text}
                 onChange={(e) => handleTextChange(e.target.value, setText, setIsJson)}
                 showLineNumbers={showLineNumbers}
               />
             </CardContent>
+            <input
+              type="file"
+              ref={fileInput}
+              className="hidden"
+              onChange={(e) => handleFileUpload(e, setText, setIsJson)}
+            />
           </Card>
         ))}
       </div>
@@ -273,77 +275,81 @@ const TextDiffTool = () => {
           </Button>
         </div>
       </div>
-      <Card>
-        <CardHeader>Result</CardHeader>
-        <CardContent>
+      <Card className="relative">
+        <div className="absolute top-2 left-2 font-bold text-sm bg-gray-200 px-2 py-1 rounded">Result</div>
+        <CardContent className="pt-10">
           <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm">
-            {result.map((line, index) => {
-              switch (line.type) {
-                case 'addition':
-                  return (
-                    <div key={index} className="bg-green-100 flex">
-                      {showLineNumbers && <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">{line.lineNumber}</span>}
-                      <span>+ {line.content}</span>
-                    </div>
-                  );
-                case 'deletion':
-                  return (
-                    <div key={index} className="bg-red-100 flex">
-                      {showLineNumbers && <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">{line.lineNumber}</span>}
-                      <span>- {line.content}</span>
-                    </div>
-                  );
-                case 'modification':
-                  return (
-                    <div key={index}>
-                      <div className="bg-red-100 flex">
+            {result.length === 0 ? (
+              <div className="text-gray-500">No differences found</div>
+            ) : (
+              result.map((line, index) => {
+                switch (line.type) {
+                  case 'addition':
+                    return (
+                      <div key={index} className="bg-green-100 flex">
                         {showLineNumbers && <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">{line.lineNumber}</span>}
-                        <span>- {line.contentA}</span>
+                        <span>+ {line.content}</span>
                       </div>
-                      <div className="bg-green-100 flex">
+                    );
+                  case 'deletion':
+                    return (
+                      <div key={index} className="bg-red-100 flex">
                         {showLineNumbers && <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">{line.lineNumber}</span>}
-                        <span>+ {line.contentB}</span>
+                        <span>- {line.content}</span>
                       </div>
-                    </div>
-                  );
-                case 'unchanged':
-                  if ('count' in line) {
-                    return <div key={index} className="text-gray-500">... {line.count} unchanged lines ...</div>;
-                  }
-                  return (
-                    <div key={index} className="flex">
-                      {showLineNumbers && <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">{line.lineNumber}</span>}
-                      <span>{line.content}</span>
-                    </div>
-                  );
-                case 'diff':
-                  return (
-                    <div key={index} className="flex">
-                      {showLineNumbers && <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">{line.lineNumber}</span>}
-                      <span>
-                        {line.content.map((part, i) => (
-                          <span
-                            key={i}
-                            className={
-                              part.added
-                                ? 'bg-green-200'
-                                : part.removed
-                                ? 'bg-red-200'
-                                : ''
-                            }
-                          >
-                            {part.value}
-                          </span>
-                        ))}
-                      </span>
-                    </div>
-                  );
-                case 'error':
-                  return <div key={index} className="text-red-500">{line.content}</div>;
-                default:
-                  return null;
-              }
-            })}
+                    );
+                  case 'modification':
+                    return (
+                      <div key={index}>
+                        <div className="bg-red-100 flex">
+                          {showLineNumbers && <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">{line.lineNumber}</span>}
+                          <span>- {line.contentA}</span>
+                        </div>
+                        <div className="bg-green-100 flex">
+                          {showLineNumbers && <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">{line.lineNumber}</span>}
+                          <span>+ {line.contentB}</span>
+                        </div>
+                      </div>
+                    );
+                  case 'unchanged':
+                    if ('count' in line) {
+                      return <div key={index} className="text-gray-500">... {line.count} unchanged lines ...</div>;
+                    }
+                    return (
+                      <div key={index} className="flex">
+                        {showLineNumbers && <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">{line.lineNumber}</span>}
+                        <span>{line.content}</span>
+                      </div>
+                    );
+                  case 'diff':
+                    return (
+                      <div key={index} className="flex">
+                        {showLineNumbers && <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">{line.lineNumber}</span>}
+                        <span>
+                          {line.content.map((part, i) => (
+                            <span
+                              key={i}
+                              className={
+                                part.added
+                                  ? 'bg-green-200'
+                                  : part.removed
+                                  ? 'bg-red-200'
+                                  : ''
+                              }
+                            >
+                              {part.value}
+                            </span>
+                          ))}
+                        </span>
+                      </div>
+                    );
+                  case 'error':
+                    return <div key={index} className="text-red-500">{line.content}</div>;
+                  default:
+                    return null;
+                }
+              })
+            )}
           </pre>
         </CardContent>
       </Card>
