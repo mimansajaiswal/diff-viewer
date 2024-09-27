@@ -1,8 +1,9 @@
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Upload, Trash2, Code, Eye, EyeOff, Hash } from 'lucide-react';
+import * as diff from 'diff';
 
 const LineNumberedTextarea = ({ value, onChange, showLineNumbers }) => {
   const textareaRef = useRef(null);
@@ -21,11 +22,11 @@ const LineNumberedTextarea = ({ value, onChange, showLineNumbers }) => {
     <div className="relative border rounded-md">
       {showLineNumbers && (
         <div 
-          className="absolute left-0 top-0 bottom-0 w-10 bg-gray-100 text-gray-400 text-right pr-2 pt-2 select-none overflow-hidden"
+          className="absolute left-0 top-0 bottom-0 w-8 sm:w-10 bg-gray-100 text-gray-400 text-right pr-1 sm:pr-2 pt-2 select-none overflow-hidden"
           style={{ pointerEvents: 'none' }}
         >
           {Array.from({ length: lineCount }, (_, i) => (
-            <div key={i} className="leading-6">{i + 1}</div>
+            <div key={i} className="leading-6 text-xs sm:text-sm" style={{ lineHeight: '1.5rem' }}>{i + 1}</div>
           ))}
         </div>
       )}
@@ -33,8 +34,8 @@ const LineNumberedTextarea = ({ value, onChange, showLineNumbers }) => {
         ref={textareaRef}
         value={value}
         onChange={onChange}
-        className={`w-full h-40 resize-none p-2 leading-6 ${showLineNumbers ? 'pl-12' : ''}`}
-        style={{ fontFamily: 'monospace' }}
+        className={`w-full h-32 sm:h-40 resize-none p-1 sm:p-2 leading-6 text-sm sm:text-base ${showLineNumbers ? 'pl-10 sm:pl-12' : ''}`}
+        style={{ fontFamily: 'monospace', lineHeight: '1.5rem' }}
       />
     </div>
   );
@@ -77,36 +78,37 @@ const TextDiffTool = () => {
 
     const linesA = processedA.split('\n');
     const linesB = processedB.split('\n');
-    let diff = [];
+    let diffResult = [];
     let unchangedCount = 0;
 
     for (let i = 0; i < Math.max(linesA.length, linesB.length); i++) {
-      if (linesA[i] !== linesB[i]) {
+      const lineA = linesA[i] || '';
+      const lineB = linesB[i] || '';
+
+      if (lineA !== lineB) {
         if (unchangedCount > 0) {
-          diff.push({ type: 'unchanged', count: unchangedCount });
+          diffResult.push({ type: 'unchanged', count: unchangedCount });
           unchangedCount = 0;
         }
-        if (linesA[i] === undefined) {
-          diff.push({ type: 'addition', content: linesB[i], lineNumber: i + 1 });
-        } else if (linesB[i] === undefined) {
-          diff.push({ type: 'deletion', content: linesA[i], lineNumber: i + 1 });
+        let lineDiff;
+        if (compareMode === 'word') {
+          lineDiff = diff.diffWords(lineA, lineB);
         } else {
-          diff.push({ type: 'modification', contentA: linesA[i], contentB: linesB[i], lineNumber: i + 1 });
+          lineDiff = diff.diffChars(lineA, lineB);
         }
+        diffResult.push({ type: 'diff', content: lineDiff, lineNumber: i + 1 });
+      } else if (showOnlyDiffs) {
+        unchangedCount++;
       } else {
-        if (showOnlyDiffs) {
-          unchangedCount++;
-        } else {
-          diff.push({ type: 'unchanged', content: linesA[i], lineNumber: i + 1 });
-        }
+        diffResult.push({ type: 'unchanged', content: lineA, lineNumber: i + 1 });
       }
     }
 
     if (unchangedCount > 0) {
-      diff.push({ type: 'unchanged', count: unchangedCount });
+      diffResult.push({ type: 'unchanged', count: unchangedCount });
     }
 
-    setResult(diff);
+    setResult(diffResult);
   };
 
   useEffect(() => {
@@ -140,67 +142,66 @@ const TextDiffTool = () => {
   };
 
   return (
-    <div className="p-4 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Advanced Text Comparison Tool</h1>
-      <div className="grid grid-cols-2 gap-4 mb-4">
+    <div className="p-2 sm:p-4 max-w-4xl mx-auto">
+      <h1 className="text-xl sm:text-2xl font-bold mb-4">Advanced Text Comparison Tool</h1>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         {[
           { version: 'A', text: textA, setText: setTextA, isJson: isJsonA, setIsJson: setIsJsonA, fileInput: fileInputA },
           { version: 'B', text: textB, setText: setTextB, isJson: isJsonB, setIsJson: setIsJsonB, fileInput: fileInputB }
         ].map(({ version, text, setText, isJson, setIsJson, fileInput }) => (
-          <Card key={version}>
-            <CardHeader className="flex justify-between items-center">
-              <span>Version {version}</span>
-              <div>
+          <Card key={version} className="relative">
+            <div className="absolute top-0 left-0 p-2 font-bold">Version {version}</div>
+            <div className="absolute top-0 right-0 p-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => fileInput.current.click()}
+                title="Upload File"
+              >
+                <Upload className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setText('')}
+                title="Clear Text"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+              {isJson && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => fileInput.current.click()}
-                  title="Upload File"
+                  onClick={() => formatJson(text, setText)}
+                  title="Format JSON"
                 >
-                  <Upload className="w-4 h-4" />
+                  <Code className="w-4 h-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setText('')}
-                  title="Clear Text"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-                {isJson && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => formatJson(text, setText)}
-                    title="Format JSON"
-                  >
-                    <Code className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-              <input
-                type="file"
-                ref={fileInput}
-                className="hidden"
-                onChange={(e) => handleFileUpload(e, setText, setIsJson)}
-              />
-            </CardHeader>
-            <CardContent>
+              )}
+            </div>
+            <CardContent className="pt-10">
               <LineNumberedTextarea
                 value={text}
                 onChange={(e) => handleTextChange(e.target.value, setText, setIsJson)}
                 showLineNumbers={showLineNumbers}
               />
             </CardContent>
+            <input
+              type="file"
+              ref={fileInput}
+              className="hidden"
+              onChange={(e) => handleFileUpload(e, setText, setIsJson)}
+            />
           </Card>
         ))}
       </div>
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <span className="mr-2">Compare by:</span>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 space-y-2 sm:space-y-0">
+        <div className="flex items-center">
+          <span className="mr-2 text-sm sm:text-base">Compare by:</span>
           <Button
             onClick={() => setCompareMode('word')}
             variant={compareMode === 'word' ? 'default' : 'outline'}
+            size="sm"
           >
             Word
           </Button>
@@ -208,77 +209,74 @@ const TextDiffTool = () => {
             onClick={() => setCompareMode('char')}
             variant={compareMode === 'char' ? 'default' : 'outline'}
             className="ml-2"
+            size="sm"
           >
             Character
           </Button>
         </div>
-        <div>
+        <div className="flex items-center space-x-2">
           <Button
             onClick={() => setShowOnlyDiffs(!showOnlyDiffs)}
             variant="outline"
-            className="mr-2"
+            size="sm"
           >
-            {showOnlyDiffs ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
-            {showOnlyDiffs ? 'Show All' : 'Show Diffs Only'}
+            {showOnlyDiffs ? <Eye className="w-4 h-4 mr-1" /> : <EyeOff className="w-4 h-4 mr-1" />}
+            <span className="hidden sm:inline">{showOnlyDiffs ? 'Show All' : 'Show Diffs Only'}</span>
           </Button>
           <Button
             onClick={() => setShowLineNumbers(!showLineNumbers)}
             variant="outline"
+            size="sm"
           >
-            <Hash className="w-4 h-4 mr-2" />
-            {showLineNumbers ? 'Hide Line Numbers' : 'Show Line Numbers'}
+            <Hash className="w-4 h-4 mr-1" />
+            <span className="hidden sm:inline">{showLineNumbers ? 'Hide Line Numbers' : 'Show Line Numbers'}</span>
           </Button>
         </div>
       </div>
-      <Card>
-        <CardHeader>Result</CardHeader>
-        <CardContent>
-          <pre className="whitespace-pre-wrap font-mono">
-            {result.map((line, index) => {
-              switch (line.type) {
-                case 'addition':
-                  return (
-                    <div key={index} className="bg-green-100 flex">
-                      {showLineNumbers && <span className="text-gray-400 w-10 text-right pr-2 select-none">{line.lineNumber}</span>}
-                      <span>+ {line.content}</span>
-                    </div>
-                  );
-                case 'deletion':
-                  return (
-                    <div key={index} className="bg-red-100 flex">
-                      {showLineNumbers && <span className="text-gray-400 w-10 text-right pr-2 select-none">{line.lineNumber}</span>}
-                      <span>- {line.content}</span>
-                    </div>
-                  );
-                case 'modification':
-                  return (
-                    <div key={index}>
-                      <div className="bg-red-100 flex">
-                        {showLineNumbers && <span className="text-gray-400 w-10 text-right pr-2 select-none">{line.lineNumber}</span>}
-                        <span>- {line.contentA}</span>
-                      </div>
-                      <div className="bg-green-100 flex">
-                        {showLineNumbers && <span className="text-gray-400 w-10 text-right pr-2 select-none">{line.lineNumber}</span>}
-                        <span>+ {line.contentB}</span>
-                      </div>
-                    </div>
-                  );
-                case 'unchanged':
-                  if ('count' in line) {
-                    return <div key={index} className="text-gray-500">... {line.count} unchanged lines ...</div>;
-                  }
-                  return (
-                    <div key={index} className="flex">
-                      {showLineNumbers && <span className="text-gray-400 w-10 text-right pr-2 select-none">{line.lineNumber}</span>}
+      <Card className="relative">
+        <div className="absolute top-0 left-0 p-2 font-bold">Result</div>
+        <CardContent className="pt-10">
+          <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm">
+            {result.length === 0 || (result.length === 1 && result[0].type === 'unchanged' && showOnlyDiffs) ? (
+              <div className="text-gray-500">No differences found</div>
+            ) : (
+              result.map((line, index) => {
+                if (line.type === 'unchanged' && 'count' in line) {
+                  return <div key={index} className="text-gray-500">... {line.count} unchanged lines ...</div>;
+                }
+                return (
+                  <div key={index} className="flex">
+                    {showLineNumbers && line.lineNumber && (
+                      <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">
+                        {line.lineNumber}
+                      </span>
+                    )}
+                    {line.type === 'unchanged' ? (
                       <span>{line.content}</span>
-                    </div>
-                  );
-                case 'error':
-                  return <div key={index} className="text-red-500">{line.content}</div>;
-                default:
-                  return null;
-              }
-            })}
+                    ) : line.type === 'diff' ? (
+                      <span>
+                        {line.content.map((part, i) => (
+                          <span
+                            key={i}
+                            className={
+                              part.added
+                                ? 'bg-green-200'
+                                : part.removed
+                                ? 'bg-red-200'
+                                : ''
+                            }
+                          >
+                            {part.value}
+                          </span>
+                        ))}
+                      </span>
+                    ) : (
+                      <span className="text-red-500">{line.content}</span>
+                    )}
+                  </div>
+                );
+              })
+            )}
           </pre>
         </CardContent>
       </Card>
