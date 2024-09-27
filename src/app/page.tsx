@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Upload, Trash2, Code, Eye, EyeOff, Hash, AlignLeft, SplitSquareVertical, Type } from 'lucide-react';
 import * as diff from 'diff';
@@ -26,7 +26,7 @@ const LineNumberedTextarea = ({ value, onChange, showLineNumbers }) => {
           style={{ pointerEvents: 'none' }}
         >
           {Array.from({ length: lineCount }, (_, i) => (
-            <div key={i} className="leading-6 text-xs sm:text-sm" style={{ lineHeight: '1.5rem' }}>{i + 1}</div>
+            <div key={i} className="leading-6 text-xs sm:text-sm">{i + 1}</div>
           ))}
         </div>
       )}
@@ -35,7 +35,7 @@ const LineNumberedTextarea = ({ value, onChange, showLineNumbers }) => {
         value={value}
         onChange={onChange}
         className={`w-full h-32 sm:h-40 resize-none p-1 sm:p-2 leading-6 text-sm sm:text-base ${showLineNumbers ? 'pl-10 sm:pl-12' : ''}`}
-        style={{ fontFamily: 'monospace', lineHeight: '1.5rem' }}
+        style={{ fontFamily: 'monospace' }}
       />
     </div>
   );
@@ -76,42 +76,38 @@ const TextDiffTool = () => {
       }
     }
 
-    const linesA = processedA.split('\n');
-    const linesB = processedB.split('\n');
     let diffResult = [];
     let unchangedCount = 0;
-    let lineNumber = 1;
 
     if (compareMode === 'line') {
-      const lineDiff = diff.diffLines(processedA, processedB);
-      diffResult = lineDiff.flatMap((part) => {
-        if (part.added) {
-          return part.value.split('\n').map(line => ({
-            type: 'added',
-            content: line,
-          }));
-        } else if (part.removed) {
-          return part.value.split('\n').map(line => ({
-            type: 'removed',
-            content: line,
-            lineNumber: lineNumber++
-          }));
-        } else if (showOnlyDiffs) {
-          unchangedCount += part.count;
-          lineNumber += part.count;
-          return [];
+      const linesA = processedA.split('\n');
+      const linesB = processedB.split('\n');
+
+      for (let i = 0; i < Math.max(linesA.length, linesB.length); i++) {
+        if (linesA[i] !== linesB[i]) {
+          if (unchangedCount > 0) {
+            diffResult.push({ type: 'unchanged', count: unchangedCount });
+            unchangedCount = 0;
+          }
+          if (linesA[i] === undefined) {
+            diffResult.push({ type: 'addition', content: linesB[i], lineNumber: i + 1 });
+          } else if (linesB[i] === undefined) {
+            diffResult.push({ type: 'deletion', content: linesA[i], lineNumber: i + 1 });
+          } else {
+            diffResult.push({ type: 'modification', contentA: linesA[i], contentB: linesB[i], lineNumber: i + 1 });
+          }
         } else {
-          return part.value.split('\n').map(line => ({
-            type: 'unchanged',
-            content: line,
-            lineNumber: lineNumber++
-          }));
+          if (showOnlyDiffs) {
+            unchangedCount++;
+          } else {
+            diffResult.push({ type: 'unchanged', content: linesA[i], lineNumber: i + 1 });
+          }
         }
-      });
-      if (unchangedCount > 0) {
-        diffResult.push({ type: 'unchanged', count: unchangedCount });
       }
     } else {
+      const linesA = processedA.split('\n');
+      const linesB = processedB.split('\n');
+
       for (let i = 0; i < Math.max(linesA.length, linesB.length); i++) {
         const lineA = linesA[i] || '';
         const lineB = linesB[i] || '';
@@ -134,10 +130,10 @@ const TextDiffTool = () => {
           diffResult.push({ type: 'unchanged', content: lineA, lineNumber: i + 1 });
         }
       }
+    }
 
-      if (unchangedCount > 0) {
-        diffResult.push({ type: 'unchanged', count: unchangedCount });
-      }
+    if (unchangedCount > 0) {
+      diffResult.push({ type: 'unchanged', count: unchangedCount });
     }
 
     setResult(diffResult);
@@ -177,56 +173,58 @@ const TextDiffTool = () => {
       <h1 className="text-xl sm:text-2xl font-bold mb-4">Advanced Text Comparison Tool</h1>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         {[
-          { version: 'v1', text: textA, setText: setTextA, isJson: isJsonA, setIsJson: setIsJsonA, fileInput: fileInputA },
-          { version: 'v2', text: textB, setText: setTextB, isJson: isJsonB, setIsJson: setIsJsonB, fileInput: fileInputB }
+          { version: 'A', text: textA, setText: setTextA, isJson: isJsonA, setIsJson: setIsJsonA, fileInput: fileInputA },
+          { version: 'B', text: textB, setText: setTextB, isJson: isJsonB, setIsJson: setIsJsonB, fileInput: fileInputB }
         ].map(({ version, text, setText, isJson, setIsJson, fileInput }) => (
-          <Card key={version} className="relative">
-            <div className="absolute top-0 left-0 p-2 font-bold">{version}</div>
-            <div className="absolute top-0 right-0 p-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => fileInput.current.click()}
-                title="Upload File"
-              >
-                <Upload className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setText('')}
-                title="Clear Text"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-              {isJson && (
+          <Card key={version}>
+            <CardHeader className="flex justify-between items-center">
+              <span>Version {version}</span>
+              <div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => formatJson(text, setText)}
-                  title="Format JSON"
+                  onClick={() => fileInput.current.click()}
+                  title="Upload File"
                 >
-                  <Code className="w-4 h-4" />
+                  <Upload className="w-4 h-4" />
                 </Button>
-              )}
-            </div>
-            <CardContent className="pt-10">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setText('')}
+                  title="Clear Text"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+                {isJson && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => formatJson(text, setText)}
+                    title="Format JSON"
+                  >
+                    <Code className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+              <input
+                type="file"
+                ref={fileInput}
+                className="hidden"
+                onChange={(e) => handleFileUpload(e, setText, setIsJson)}
+              />
+            </CardHeader>
+            <CardContent>
               <LineNumberedTextarea
                 value={text}
                 onChange={(e) => handleTextChange(e.target.value, setText, setIsJson)}
                 showLineNumbers={showLineNumbers}
               />
             </CardContent>
-            <input
-              type="file"
-              ref={fileInput}
-              className="hidden"
-              onChange={(e) => handleFileUpload(e, setText, setIsJson)}
-            />
           </Card>
         ))}
       </div>
-      <div className="flex flex-col sm:flex-row justify-between items-end sm:items-center mb-4 space-y-2 sm:space-y-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 space-y-2 sm:space-y-0">
         <div className="flex items-center">
           <span className="mr-2 text-sm sm:text-base">Compare by:</span>
           <Button
@@ -275,27 +273,53 @@ const TextDiffTool = () => {
           </Button>
         </div>
       </div>
-      <Card className="relative">
-        <div className="absolute top-0 left-0 p-2 font-bold">Result</div>
-        <CardContent className="pt-10">
+      <Card>
+        <CardHeader>Result</CardHeader>
+        <CardContent>
           <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm">
-            {result.length === 0 || (result.length === 1 && result[0].type === 'unchanged' && showOnlyDiffs) ? (
-              <div className="text-gray-500">No differences found</div>
-            ) : (
-              result.map((line, index) => {
-                if (line.type === 'unchanged' && 'count' in line) {
-                  return <div key={index} className="text-gray-500">... {line.count} unchanged lines ...</div>;
-                }
-                return (
-                  <div key={index} className="flex">
-                    {showLineNumbers && line.lineNumber && (
-                      <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">
-                        {line.lineNumber}
-                      </span>
-                    )}
-                    {line.type === 'unchanged' ? (
+            {result.map((line, index) => {
+              switch (line.type) {
+                case 'addition':
+                  return (
+                    <div key={index} className="bg-green-100 flex">
+                      {showLineNumbers && <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">{line.lineNumber}</span>}
+                      <span>+ {line.content}</span>
+                    </div>
+                  );
+                case 'deletion':
+                  return (
+                    <div key={index} className="bg-red-100 flex">
+                      {showLineNumbers && <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">{line.lineNumber}</span>}
+                      <span>- {line.content}</span>
+                    </div>
+                  );
+                case 'modification':
+                  return (
+                    <div key={index}>
+                      <div className="bg-red-100 flex">
+                        {showLineNumbers && <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">{line.lineNumber}</span>}
+                        <span>- {line.contentA}</span>
+                      </div>
+                      <div className="bg-green-100 flex">
+                        {showLineNumbers && <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">{line.lineNumber}</span>}
+                        <span>+ {line.contentB}</span>
+                      </div>
+                    </div>
+                  );
+                case 'unchanged':
+                  if ('count' in line) {
+                    return <div key={index} className="text-gray-500">... {line.count} unchanged lines ...</div>;
+                  }
+                  return (
+                    <div key={index} className="flex">
+                      {showLineNumbers && <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">{line.lineNumber}</span>}
                       <span>{line.content}</span>
-                    ) : line.type === 'diff' ? (
+                    </div>
+                  );
+                case 'diff':
+                  return (
+                    <div key={index} className="flex">
+                      {showLineNumbers && <span className="text-gray-400 w-8 sm:w-10 text-right pr-1 sm:pr-2 select-none">{line.lineNumber}</span>}
                       <span>
                         {line.content.map((part, i) => (
                           <span
@@ -312,17 +336,14 @@ const TextDiffTool = () => {
                           </span>
                         ))}
                       </span>
-                    ) : line.type === 'added' ? (
-                      <span className="bg-green-200">{line.content}</span>
-                    ) : line.type === 'removed' ? (
-                      <span className="bg-red-200">{line.content}</span>
-                    ) : (
-                      <span className="text-red-500">{line.content}</span>
-                    )}
-                  </div>
-                );
-              })
-            )}
+                    </div>
+                  );
+                case 'error':
+                  return <div key={index} className="text-red-500">{line.content}</div>;
+                default:
+                  return null;
+              }
+            })}
           </pre>
         </CardContent>
       </Card>
