@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Upload, Trash2, Code, Eye, EyeOff, Hash } from 'lucide-react';
+import { Upload, Trash2, Code, Eye, EyeOff, Hash, AlignLeft, SplitSquareVertical, Type } from 'lucide-react';
 import * as diff from 'diff';
 
 const LineNumberedTextarea = ({ value, onChange, showLineNumbers }) => {
@@ -80,32 +80,64 @@ const TextDiffTool = () => {
     const linesB = processedB.split('\n');
     let diffResult = [];
     let unchangedCount = 0;
+    let lineNumber = 1;
 
-    for (let i = 0; i < Math.max(linesA.length, linesB.length); i++) {
-      const lineA = linesA[i] || '';
-      const lineB = linesB[i] || '';
-
-      if (lineA !== lineB) {
-        if (unchangedCount > 0) {
-          diffResult.push({ type: 'unchanged', count: unchangedCount });
-          unchangedCount = 0;
-        }
-        let lineDiff;
-        if (compareMode === 'word') {
-          lineDiff = diff.diffWords(lineA, lineB);
+    if (compareMode === 'line') {
+      const lineDiff = diff.diffLines(processedA, processedB);
+      diffResult = lineDiff.flatMap((part) => {
+        if (part.added) {
+          return part.value.split('\n').map(line => ({
+            type: 'added',
+            content: line,
+          }));
+        } else if (part.removed) {
+          return part.value.split('\n').map(line => ({
+            type: 'removed',
+            content: line,
+            lineNumber: lineNumber++
+          }));
+        } else if (showOnlyDiffs) {
+          unchangedCount += part.count;
+          lineNumber += part.count;
+          return [];
         } else {
-          lineDiff = diff.diffChars(lineA, lineB);
+          return part.value.split('\n').map(line => ({
+            type: 'unchanged',
+            content: line,
+            lineNumber: lineNumber++
+          }));
         }
-        diffResult.push({ type: 'diff', content: lineDiff, lineNumber: i + 1 });
-      } else if (showOnlyDiffs) {
-        unchangedCount++;
-      } else {
-        diffResult.push({ type: 'unchanged', content: lineA, lineNumber: i + 1 });
+      });
+      if (unchangedCount > 0) {
+        diffResult.push({ type: 'unchanged', count: unchangedCount });
       }
-    }
+    } else {
+      for (let i = 0; i < Math.max(linesA.length, linesB.length); i++) {
+        const lineA = linesA[i] || '';
+        const lineB = linesB[i] || '';
 
-    if (unchangedCount > 0) {
-      diffResult.push({ type: 'unchanged', count: unchangedCount });
+        if (lineA !== lineB) {
+          if (unchangedCount > 0) {
+            diffResult.push({ type: 'unchanged', count: unchangedCount });
+            unchangedCount = 0;
+          }
+          let lineDiff;
+          if (compareMode === 'word') {
+            lineDiff = diff.diffWords(lineA, lineB);
+          } else {
+            lineDiff = diff.diffChars(lineA, lineB);
+          }
+          diffResult.push({ type: 'diff', content: lineDiff, lineNumber: i + 1 });
+        } else if (showOnlyDiffs) {
+          unchangedCount++;
+        } else {
+          diffResult.push({ type: 'unchanged', content: lineA, lineNumber: i + 1 });
+        }
+      }
+
+      if (unchangedCount > 0) {
+        diffResult.push({ type: 'unchanged', count: unchangedCount });
+      }
     }
 
     setResult(diffResult);
@@ -132,7 +164,6 @@ const TextDiffTool = () => {
     try {
       setter(JSON.stringify(JSON.parse(text), null, 2));
     } catch (error) {
-      // If parsing fails, do nothing
     }
   };
 
@@ -146,11 +177,11 @@ const TextDiffTool = () => {
       <h1 className="text-xl sm:text-2xl font-bold mb-4">Advanced Text Comparison Tool</h1>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         {[
-          { version: 'A', text: textA, setText: setTextA, isJson: isJsonA, setIsJson: setIsJsonA, fileInput: fileInputA },
-          { version: 'B', text: textB, setText: setTextB, isJson: isJsonB, setIsJson: setIsJsonB, fileInput: fileInputB }
+          { version: 'v1', text: textA, setText: setTextA, isJson: isJsonA, setIsJson: setIsJsonA, fileInput: fileInputA },
+          { version: 'v2', text: textB, setText: setTextB, isJson: isJsonB, setIsJson: setIsJsonB, fileInput: fileInputB }
         ].map(({ version, text, setText, isJson, setIsJson, fileInput }) => (
           <Card key={version} className="relative">
-            <div className="absolute top-0 left-0 p-2 font-bold">Version {version}</div>
+            <div className="absolute top-0 left-0 p-2 font-bold">{version}</div>
             <div className="absolute top-0 right-0 p-2">
               <Button
                 variant="ghost"
@@ -195,23 +226,34 @@ const TextDiffTool = () => {
           </Card>
         ))}
       </div>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 space-y-2 sm:space-y-0">
+      <div className="flex flex-col sm:flex-row justify-between items-end sm:items-center mb-4 space-y-2 sm:space-y-0">
         <div className="flex items-center">
           <span className="mr-2 text-sm sm:text-base">Compare by:</span>
           <Button
-            onClick={() => setCompareMode('word')}
-            variant={compareMode === 'word' ? 'default' : 'outline'}
-            size="sm"
-          >
-            Word
-          </Button>
-          <Button
             onClick={() => setCompareMode('char')}
             variant={compareMode === 'char' ? 'default' : 'outline'}
+            size="sm"
+          >
+            <SplitSquareVertical className="w-4 h-4 mr-1" />
+            Character
+          </Button>
+          <Button
+            onClick={() => setCompareMode('word')}
+            variant={compareMode === 'word' ? 'default' : 'outline'}
             className="ml-2"
             size="sm"
           >
-            Character
+            <Type className="w-4 h-4 mr-1" />
+            Word
+          </Button>
+          <Button
+            onClick={() => setCompareMode('line')}
+            variant={compareMode === 'line' ? 'default' : 'outline'}
+            className="ml-2"
+            size="sm"
+          >
+            <AlignLeft className="w-4 h-4 mr-1" />
+            Line
           </Button>
         </div>
         <div className="flex items-center space-x-2">
@@ -270,6 +312,10 @@ const TextDiffTool = () => {
                           </span>
                         ))}
                       </span>
+                    ) : line.type === 'added' ? (
+                      <span className="bg-green-200">{line.content}</span>
+                    ) : line.type === 'removed' ? (
+                      <span className="bg-red-200">{line.content}</span>
                     ) : (
                       <span className="text-red-500">{line.content}</span>
                     )}
