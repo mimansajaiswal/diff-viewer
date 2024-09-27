@@ -1,8 +1,8 @@
+'use client';
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Upload, Trash2, Code, Eye, EyeOff, Hash } from 'lucide-react';
-use client;
 
 const LineNumberedTextarea = ({ value, onChange, showLineNumbers }) => {
   const textareaRef = useRef(null);
